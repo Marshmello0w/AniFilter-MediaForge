@@ -1,0 +1,28 @@
+AniFilter für MediaForge 1.5.0+
+================================
+
+Variante A – Modulordner kopieren
+---------------------------------
+1. MediaForge stoppen.
+2. Den Ordner "anifilter_mediaforge" nach folgendem Verzeichnis kopieren:
+   Linux/macOS: ~/.mediaforge/thirdparties/anifilter_mediaforge
+   Windows:     C:\Users\<Benutzer>\.mediaforge\thirdparties\anifilter_mediaforge
+3. MediaForge starten.
+4. Im Modulmanager unter /extensions "AniFilter" aktivieren.
+5. "AniFilter" erscheint unter "Entdecken".
+
+Variante B – .mfmod
+-------------------
+Die Datei AniFilter-MediaForge-1.0.0.mfmod ist das gepackte Modul. Wenn deine
+MediaForge-Installation lokale Moduldateien im Modulmanager akzeptiert, kannst
+du diese Datei dort auswählen. Andernfalls Variante A verwenden.
+
+Hinweise
+--------
+- Kein Node.js und kein TMDB-Key nötig.
+- Die Datenbank liegt unter ~/.mediaforge/module_data/anifilter_mediaforge/.
+- Der Erstscan läuft im Hintergrund und wird nach Neustarts fortgesetzt.
+- Die bestehende AniFilter-AMP-Installation wird nicht verwendet oder verändert.
+- Nicht signierte private Module können im Modulmanager als "unverifiziert"
+  erscheinen. Das ist bei lokal erstellten Modulen normal.
+

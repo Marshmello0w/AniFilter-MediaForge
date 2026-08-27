@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}AniFilter — MediaForge{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='mf_components.css') }}">
+<link rel="stylesheet" href="{{ url_for('anifilter_mediaforge.static', filename='tokens.css') }}">
+<link rel="stylesheet" href="{{ url_for('anifilter_mediaforge.static', filename='anifilter.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="af-page" id="afApp">
+  <header class="page-header af-header">
+    <div>
+      <h1 class="page-title">AniFilter</h1>
+      <p class="page-subtitle">AniWorld vollständig durchsuchen — mit mehreren Genres, Ausschlüssen und exakten Altersstufen.</p>
+    </div>
+    <div class="af-scan" id="afScan" aria-live="polite">
+      <span class="af-scan-dot"></span>
+      <span id="afScanText">Status wird geladen …</span>
+    </div>
+  </header>
+
+  <section class="af-releases" aria-labelledby="afReleaseTitle">
+    <div class="af-section-head">
+      <div>
+        <h2 id="afReleaseTitle">Neu auf Deutsch</h2>
+        <p>Die neuesten bestätigten deutschen AniWorld-Veröffentlichungen.</p>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="afShowGer">Alle Ger-Titel anzeigen</button>
+    </div>
+    <div class="af-release-rail" id="afReleaseRail" aria-live="polite">
+      <div class="mf-skeleton mf-skeleton-card"></div>
+      <div class="mf-skeleton mf-skeleton-card"></div>
+      <div class="mf-skeleton mf-skeleton-card"></div>
+    </div>
+  </section>
+
+  <section class="af-workbench" aria-label="AniFilter Filter und Ergebnisse">
+    <aside class="af-filters" id="afFilters">
+      <div class="af-filter-head">
+        <div>
+          <h2>Filter</h2>
+          <p id="afFilterSummary">Keine Filter aktiv</p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="afReset">Zurücksetzen</button>
+      </div>
+
+      <label class="af-field">
+        <span>Genre suchen</span>
+        <input type="search" id="afGenreSearch" placeholder="z. B. Harem oder Ger" autocomplete="off">
+      </label>
+
+      <div class="af-field">
+        <span>Eingeschlossene Genres</span>
+        <div class="mf-segmented" id="afGenreMode" role="group" aria-label="Genre-Verknüpfung">
+          <button type="button" class="mf-segmented-btn active" data-value="all">Alle</button>
+          <button type="button" class="mf-segmented-btn" data-value="any">Mindestens eins</button>
+        </div>
+        <p class="af-help">Ein Klick schließt ein, der zweite schließt aus, der dritte setzt zurück.</p>
+      </div>
+      <div class="af-genre-list" id="afGenres" aria-live="polite"></div>
+
+      <div class="af-field">
+        <span>Altersmodus</span>
+        <div class="mf-segmented af-age-modes" id="afAgeMode" role="group" aria-label="Altersmodus">
+          <button type="button" class="mf-segmented-btn active" data-value="all">Alle</button>
+          <button type="button" class="mf-segmented-btn" data-value="exact">Einzeln</button>
+          <button type="button" class="mf-segmented-btn" data-value="max">Bis</button>
+        </div>
+      </div>
+      <div class="af-age-options" id="afExactAges" hidden></div>
+      <label class="af-field" id="afMaxAgeField" hidden>
+        <span>Maximale Altersstufe</span>
+        <select id="afMaxAge"></select>
+      </label>
+    </aside>
+
+    <div class="af-results">
+      <div class="mf-toolbar af-toolbar">
+        <div class="mf-search af-search">
+          <svg class="mf-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+          <input type="search" id="afQuery" placeholder="Titel oder Alternativtitel suchen" autocomplete="off">
+        </div>
+        <button type="button" class="btn btn-secondary af-mobile-filter" id="afMobileFilter" aria-expanded="false">Filter</button>
+        <select id="afSort" aria-label="Sortierung">
+          <option value="title_asc">Titel A–Z</option>
+          <option value="title_desc">Titel Z–A</option>
+          <option value="year_desc">Neueste zuerst</option>
+          <option value="year_asc">Älteste zuerst</option>
+          <option value="updated_desc">Zuletzt erfasst</option>
+        </select>
+      </div>
+
+      <div class="af-result-meta">
+        <span id="afCount">Katalog wird geladen …</span>
+        <span class="af-legend"><i class="is-include"></i> einschließen <i class="is-exclude"></i> ausschließen</span>
+      </div>
+      <div class="mf-poster-grid af-grid" id="afGrid" aria-live="polite"></div>
+      <div class="mf-empty" id="afEmpty" hidden>
+        <svg class="mf-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <div class="mf-empty-title">Keine passenden Anime</div>
+        <p class="mf-empty-hint">Entferne einen Filter oder wähle bei Genres „Mindestens eins“.</p>
+      </div>
+      <div class="mf-pagination-bar" id="afPagination" hidden>
+        <button type="button" class="btn btn-secondary btn-sm" id="afPrev">Zurück</button>
+        <span class="mf-pagination-count" id="afPageCount"></span>
+        <button type="button" class="btn btn-secondary btn-sm" id="afNext">Weiter</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="af-modal" id="afModal" hidden role="dialog" aria-modal="true" aria-labelledby="afModalTitle">
+  <button class="af-modal-backdrop" type="button" data-close aria-label="Schließen"></button>
+  <div class="af-modal-panel" tabindex="-1">
+    <button class="af-modal-close" type="button" data-close aria-label="Schließen">×</button>
+    <div class="af-detail" id="afDetail">
+      <div class="af-detail-art mf-skeleton"></div>
+      <div class="af-detail-body"><h2 id="afModalTitle">Anime wird geladen …</h2></div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.ANIFILTER_CONFIG = {
+  catalogue: {{ url_for('anifilter_mediaforge.api_catalogue')|tojson }},
+  animeBase: {{ url_for('anifilter_mediaforge.api_anime', slug='__slug__')|tojson }},
+  releases: {{ url_for('anifilter_mediaforge.api_releases')|tojson }},
+  status: {{ url_for('anifilter_mediaforge.api_status')|tojson }}
+};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('anifilter_mediaforge.static', filename='anifilter.js') }}"></script>
+{% endblock %}
+
