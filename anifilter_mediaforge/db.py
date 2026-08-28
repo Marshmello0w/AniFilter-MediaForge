@@ -7,9 +7,11 @@ import sqlite3
 import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urljoin
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 PARSER_VERSION = 1
+_CANONICAL_FSK_LEVELS = {0, 6, 12, 16, 18}
 try:
     _BERLIN = ZoneInfo("Europe/Berlin")
 except ZoneInfoNotFoundError:
@@ -43,6 +45,34 @@ def _loads(value, default=None):
         return json.loads(value) if value else (default if default is not None else [])
     except (TypeError, ValueError):
         return default if default is not None else []
+
+
+def normalize_poster_url(value) -> str:
+    """Return a browser/proxy-safe AniWorld poster URL.
+
+    Existing databases may contain a relative cover path, a protocol-relative
+    CDN URL or a URL accidentally prefixed twice by an older parser.  Projecting
+    the normalized value fixes those rows immediately without re-scanning the
+    whole catalogue.
+    """
+    raw = str(value or "").strip()
+    if not raw or raw.startswith("data:"):
+        return ""
+    if raw.startswith("/api/img?"):
+        return raw
+    second_http = min(
+        (pos for pos in (raw.find("https://", 8), raw.find("http://", 7)) if pos >= 0),
+        default=-1,
+    )
+    if second_http >= 0:
+        raw = raw[second_http:]
+    if raw.startswith("//"):
+        return "https:" + raw
+    if raw.startswith("/"):
+        return urljoin("https://aniworld.to/", raw)
+    if raw.startswith(("https://", "http://")):
+        return raw
+    return ""
 
 
 def default_db_path() -> Path:
@@ -247,7 +277,7 @@ class Store:
                 (
                     detail.get("title") or slug,
                     detail.get("description") or "",
-                    detail.get("poster_url") or "",
+                    normalize_poster_url(detail.get("poster_url")),
                     detail.get("release_year") or "",
                     age,
                     detail.get("rating") or "",
@@ -340,7 +370,7 @@ class Store:
             "aliases": _loads(row["aliases_json"]),
             "genres": _loads(row["genres_json"]),
             "description": row["description"],
-            "poster_url": row["poster_url"],
+            "poster_url": normalize_poster_url(row["poster_url"]),
             "release_year": row["release_year"],
             "age_rating": row["age_rating"],
             "rating": row["rating"],
@@ -357,7 +387,12 @@ class Store:
             rows = db.execute("SELECT * FROM anime WHERE active=1").fetchall()
         all_items = [self._project(row) for row in rows]
         genres = sorted({genre for item in all_items for genre in item["genres"]}, key=str.casefold)
-        ages = sorted({int(item["age_rating"]) for item in all_items if item["age_rating"] is not None})
+        ages = {
+            int(item["age_rating"]) for item in all_items if item["age_rating"] is not None
+        } | _CANONICAL_FSK_LEVELS
+        if age_ceiling is not None:
+            ages = {age for age in ages if age <= age_ceiling}
+        ages = sorted(ages)
 
         query = str(filters.get("q") or "").strip().casefold()
         include = {str(v).casefold() for v in filters.get("include") or []}

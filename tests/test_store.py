@@ -3,7 +3,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from anifilter_mediaforge.db import Store
+from anifilter_mediaforge.db import Store, normalize_poster_url
 
 
 def entry(slug, genres=None):
@@ -51,6 +51,24 @@ class StoreTests(unittest.TestCase):
         result = store.catalogue({"age_mode": "all", "ages": ["12"]})
         self.assertEqual(result["total"], 103)
 
+    def test_fsk_18_is_always_available_when_account_allows_it(self):
+        path = Path(self.temp.name) / "fsk.sqlite"
+        store = Store(path)
+        store.upsert_catalogue([entry(f"show-{index}") for index in range(100)])
+        self.assertEqual(store.catalogue({})["facets"]["ages"], [0, 6, 12, 16, 18])
+        self.assertEqual(store.catalogue({}, age_ceiling=16)["facets"]["ages"], [0, 6, 12, 16])
+
+    def test_existing_poster_urls_are_normalized_without_rescan(self):
+        self.assertEqual(
+            normalize_poster_url("/public/img/cover/show.png"),
+            "https://aniworld.to/public/img/cover/show.png",
+        )
+        self.assertEqual(
+            normalize_poster_url("https://aniworld.tohttps://cdn.aniworld.to/show.webp"),
+            "https://cdn.aniworld.to/show.webp",
+        )
+        self.assertEqual(normalize_poster_url("data:image/png;base64,abc"), "")
+
     def test_release_fill_order_and_ger_attachment(self):
         store = self.populated()
         releases = [("green", "2026-08-27"), ("mixed", "2026-08-10"), ("red", "2025-12-31")]
@@ -74,4 +92,3 @@ class StoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

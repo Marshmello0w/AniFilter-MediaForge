@@ -11,12 +11,18 @@
   };
   let requestSeq = 0;
   let queryTimer = 0;
-  let lastFocus = null;
+  let suppressNativeCloseUrl = false;
 
   const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
   }[char]));
-  const proxy = (url) => url ? `/api/img?url=${encodeURIComponent(url)}` : "";
+  const proxy = (url) => {
+    if (!url) return "";
+    if (url.startsWith("/api/img?")) return url;
+    return typeof window.proxyImg === "function"
+      ? window.proxyImg(url)
+      : `/api/img?url=${encodeURIComponent(url)}`;
+  };
   const animeApi = (slug) => cfg.animeBase.replace("__slug__", encodeURIComponent(slug));
 
   function readUrl() {
@@ -119,7 +125,7 @@
         ? `<img src="${esc(proxy(item.poster_url))}" alt="" loading="lazy">`
         : '<span class="af-poster-placeholder" aria-hidden="true">Kein Cover</span>';
       const fsk = item.age_rating == null ? "FSK —" : `FSK ${item.age_rating}`;
-      return `<button type="button" class="mf-poster-card af-card" data-anime="${esc(item.slug)}">
+      return `<button type="button" class="mf-poster-card af-card" data-anime="${esc(item.slug)}" data-url="${esc(item.url)}">
         <span class="mf-poster-art">${art}<span class="mf-poster-scrim"></span></span>
         <span class="mf-poster-meta"><strong class="mf-poster-title">${esc(item.title)}</strong>
           <span class="mf-poster-foot"><span>${esc(item.release_year || "Jahr —")}</span><span>${fsk}</span></span>
@@ -140,7 +146,7 @@
         $('afReleaseRail').innerHTML = '<div class="mf-empty"><p class="mf-empty-hint">Noch keine bestätigten deutschen Releases erfasst.</p></div>';
         return;
       }
-      $('afReleaseRail').innerHTML = data.items.map((item) => `<button type="button" class="af-release-card" data-anime="${esc(item.slug)}">
+      $('afReleaseRail').innerHTML = data.items.map((item) => `<button type="button" class="af-release-card" data-anime="${esc(item.slug)}" data-url="${esc(item.url)}">
         ${item.poster_url ? `<img src="${esc(proxy(item.poster_url))}" alt="" loading="lazy">` : '<span class="af-poster-placeholder" style="aspect-ratio:2/3">Kein Cover</span>'}
         <span class="af-period">${esc(item.period_label)}</span>
         <span class="af-release-card-body"><strong>${esc(item.title)}</strong><span>${esc(item.released_on)} · S${item.season} E${item.episode}</span></span>
@@ -164,98 +170,28 @@
     }
   }
 
-  async function openAnime(slug, historyMode = "push") {
-    lastFocus = document.activeElement;
+  async function openAnime(slug, historyMode = "push", knownUrl = "") {
     state.anime = slug;
     writeUrl(historyMode);
-    $('afModal').hidden = false;
-    document.body.style.overflow = "hidden";
-    $('afDetail').innerHTML = '<div class="af-detail-art mf-skeleton"></div><div class="af-detail-body"><h2 id="afModalTitle">Anime wird geladen …</h2><div class="mf-skeleton-text is-medium"></div></div>';
-    $('afModal').querySelector(".af-modal-panel").focus();
     try {
-      const response = await fetch(animeApi(slug));
-      const item = await response.json();
-      if (!response.ok) throw new Error(item.error || "Details nicht verfügbar");
-      renderDetail(item);
-      loadSeasons(item);
+      let seriesUrl = knownUrl;
+      let title = slug;
+      if (!seriesUrl) {
+        const response = await fetch(animeApi(slug));
+        const item = await response.json();
+        if (!response.ok) throw new Error(item.error || "Details nicht verfügbar");
+        seriesUrl = item.url;
+        title = item.title || title;
+      }
+      if (typeof window.openSeries !== "function") {
+        throw new Error("Die native MediaForge-Detailansicht ist nicht verfügbar");
+      }
+      await window.openSeries(seriesUrl);
     } catch (error) {
-      $('afDetail').innerHTML = `<div class="mf-empty is-error"><div class="mf-empty-title">Details nicht verfügbar</div><p class="mf-empty-hint">${esc(error.message)}</p></div>`;
+      state.anime = "";
+      writeUrl("replace");
+      notify(error.message, true);
     }
-  }
-
-  function renderDetail(item) {
-    const meta = [item.release_year, item.age_rating == null ? "FSK nicht angegeben" : `FSK ${item.age_rating}`, item.rating ? `Bewertung ${item.rating}` : ""].filter(Boolean);
-    $('afDetail').innerHTML = `<div class="af-detail-art">${item.poster_url ? `<img src="${esc(proxy(item.poster_url))}" alt="Cover von ${esc(item.title)}">` : '<span class="af-poster-placeholder" style="aspect-ratio:2/3">Kein Cover</span>'}</div>
-      <div class="af-detail-body">
-        <h2 id="afModalTitle">${esc(item.title)}</h2>
-        <div class="af-detail-meta">${meta.map((v) => `<span class="badge badge-neutral">${esc(v)}</span>`).join("")}</div>
-        <div class="af-detail-genres">${item.genres.map((g) => `<span class="badge badge-accent">${esc(g)}</span>`).join("")}</div>
-        <p class="af-detail-description">${esc(item.description || "AniWorld enthält noch keine Beschreibung für diesen Titel.")}</p>
-        <div class="af-detail-actions">
-          <a class="btn btn-secondary" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Auf AniWorld öffnen</a>
-          <button class="btn btn-primary" type="button" id="afAutoSync">Zu Auto-Sync</button>
-        </div>
-        <section class="af-episodes"><div class="af-section-head"><div><h3>Staffeln und Episoden</h3><p>Wähle Episoden für die MediaForge-Queue.</p></div><select id="afSeason" aria-label="Staffel"></select></div><div id="afEpisodeHost"><span class="af-help">Staffeln werden geladen …</span></div></section>
-      </div>`;
-    $('afAutoSync').addEventListener("click", () => addAutoSync(item));
-  }
-
-  async function loadSeasons(item) {
-    const host = $('afEpisodeHost');
-    try {
-      const response = await fetch(`/api/seasons?url=${encodeURIComponent(item.url)}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Staffeln nicht verfügbar");
-      const select = $('afSeason');
-      select.innerHTML = (data.seasons || []).map((season, index) => `<option value="${index}">${season.are_movies ? "Filme" : `Staffel ${season.season_number}`} · ${season.episode_count} Episoden</option>`).join("");
-      if (!data.seasons?.length) { host.innerHTML = '<span class="af-help">Keine Staffeln gefunden.</span>'; return; }
-      const open = () => loadEpisodes(item, data.seasons[Number(select.value) || 0]);
-      select.addEventListener("change", open);
-      open();
-    } catch (error) { host.innerHTML = `<span class="af-help">${esc(error.message)}</span>`; }
-  }
-
-  async function loadEpisodes(item, season) {
-    const host = $('afEpisodeHost');
-    host.innerHTML = '<span class="af-help">Episoden werden geladen …</span>';
-    try {
-      const response = await fetch(`/api/episodes?url=${encodeURIComponent(season.url)}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Episoden nicht verfügbar");
-      host.innerHTML = `<div class="af-episode-list">${(data.episodes || []).map((episode) => `<label class="af-episode"><input type="checkbox" value="${esc(episode.url)}" ${episode.downloaded ? "disabled" : "checked"}><span><strong>Episode ${episode.episode_number}</strong>${episode.title_de ? ` · ${esc(episode.title_de)}` : ""}${episode.downloaded ? " · bereits vorhanden" : ""}</span></label>`).join("")}</div><div class="af-detail-actions"><button type="button" class="btn btn-primary" id="afQueue">Ausgewählte zur Queue</button><button type="button" class="btn btn-ghost" id="afToggleEpisodes">Auswahl umkehren</button></div>`;
-      $('afToggleEpisodes').addEventListener("click", () => host.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach((box) => { box.checked = !box.checked; }));
-      $('afQueue').addEventListener("click", () => queueEpisodes(item, host));
-    } catch (error) { host.innerHTML = `<span class="af-help">${esc(error.message)}</span>`; }
-  }
-
-  async function queueEpisodes(item, host) {
-    const button = $('afQueue');
-    const episodes = [...host.querySelectorAll('input[type="checkbox"]:checked')].map((box) => box.value);
-    if (!episodes.length) { notify("Wähle mindestens eine Episode.", true); return; }
-    button.disabled = true; button.classList.add("is-loading"); button.textContent = "Wird eingereiht …";
-    try {
-      const response = await fetch("/api/download", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: item.title, series_url: item.url, episodes, language: "German Dub", provider: "VOE" }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Queue-Aktion fehlgeschlagen");
-      button.textContent = "Zur Queue hinzugefügt"; button.classList.add("is-success-state");
-      notify(`${episodes.length} Episoden wurden zur Queue hinzugefügt.`);
-    } catch (error) { button.disabled = false; button.classList.remove("is-loading"); button.classList.add("is-error-state"); button.textContent = "Erneut versuchen"; notify(error.message, true); }
-  }
-
-  async function addAutoSync(item) {
-    const button = $('afAutoSync');
-    button.disabled = true; button.classList.add("is-loading"); button.textContent = "Wird angelegt …";
-    try {
-      const response = await fetch("/api/autosync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: item.title, series_url: item.url, language: "German Dub", provider: "VOE", cover_url: item.poster_url || "" }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Auto-Sync konnte nicht angelegt werden");
-      button.textContent = "Auto-Sync aktiv"; button.classList.add("is-success-state"); notify("Auto-Sync wurde angelegt.");
-    } catch (error) { button.disabled = false; button.classList.remove("is-loading"); button.classList.add("is-error-state"); button.textContent = "Erneut versuchen"; notify(error.message, true); }
-  }
-
-  function closeModal(historyMode = "push") {
-    $('afModal').hidden = true; document.body.style.overflow = ""; state.anime = ""; writeUrl(historyMode);
-    if (lastFocus?.focus) lastFocus.focus();
   }
   function notify(message, isError = false) {
     if (typeof window.showToast === "function") window.showToast(message, isError ? "error" : "success");
@@ -282,12 +218,37 @@
   $('afReset').addEventListener("click", () => { Object.assign(state, { q: "", include: new Set(), exclude: new Set(), genreMode: "all", ageMode: "all", ages: new Set(), ageMax: "", sort: "title_asc", page: 1 }); $('afGenreSearch').value = ""; syncControls(); loadCatalogue(); });
   $('afShowGer').addEventListener("click", () => { state.include = new Set(["Ger"]); state.exclude.clear(); state.genreMode = "all"; state.page = 1; syncControls(); loadCatalogue(); $('afGrid').scrollIntoView({ behavior: "smooth", block: "start" }); });
   $('afMobileFilter').addEventListener("click", () => { const open = $('afFilters').classList.toggle("is-open"); $('afMobileFilter').setAttribute("aria-expanded", String(open)); });
-  document.addEventListener("click", (event) => { const button = event.target.closest("[data-anime]"); if (button) openAnime(button.dataset.anime); });
-  $('afModal').addEventListener("click", (event) => { if (event.target.closest("[data-close]")) closeModal(); });
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !$('afModal').hidden) closeModal(); });
-  window.addEventListener("popstate", () => { const was = state.anime; readUrl(); syncControls(); loadCatalogue(); if (state.anime && state.anime !== was) openAnime(state.anime, "replace"); else if (!state.anime && !$('afModal').hidden) { $('afModal').hidden = true; document.body.style.overflow = ""; } });
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-anime]");
+    if (button) openAnime(button.dataset.anime, "push", button.dataset.url || "");
+  });
+
+  const coreCloseModal = typeof window.closeModal === "function" ? window.closeModal : null;
+  if (coreCloseModal) {
+    window.closeModal = function (...args) {
+      const result = coreCloseModal.apply(this, args);
+      if (!suppressNativeCloseUrl && state.anime) {
+        state.anime = "";
+        writeUrl("push");
+      }
+      return result;
+    };
+  }
+
+  window.addEventListener("popstate", () => {
+    const was = state.anime;
+    readUrl();
+    syncControls();
+    loadCatalogue();
+    if (state.anime && state.anime !== was) {
+      openAnime(state.anime, "replace");
+    } else if (!state.anime && was && coreCloseModal) {
+      suppressNativeCloseUrl = true;
+      coreCloseModal();
+      suppressNativeCloseUrl = false;
+    }
+  });
 
   readUrl(); syncControls(); loadCatalogue(); loadReleases(); loadStatus(); setInterval(loadStatus, 20000);
   if (state.anime) openAnime(state.anime, "replace");
 })();
-

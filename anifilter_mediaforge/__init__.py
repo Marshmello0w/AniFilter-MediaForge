@@ -12,7 +12,7 @@ MODULE_DESCRIPTION = "Advanced AniWorld genre and age filters with German releas
 MODULE_DESCRIPTION_DE = "Erweiterte AniWorld-Genre- und Altersfilter mit deutschen Neuerscheinungen."
 MODULE_AUTHOR = "AniFilter"
 MODULE_ENABLED_DEFAULT = False
-MODULE_VERSION = "1.0.0"
+MODULE_VERSION = "1.0.1"
 MODULE_API_VERSION = 1
 MODULE_MIN_APP_VERSION = "1.5.0"
 MODULE_MAX_APP_VERSION = ""
@@ -137,4 +137,3 @@ def on_upgrade(app, from_version, to_version) -> None:
 
     Store().initialize()
     app.logger.info("[AniFilter] upgraded %s -> %s", from_version, to_version)
-

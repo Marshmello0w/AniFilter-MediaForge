@@ -1,14 +1,14 @@
 {
   "store_api": 1,
   "name": "AniFilter MediaForge Repository",
-  "updated_at": "2026-08-28T00:00:00Z",
+  "updated_at": "2026-08-28T12:00:00Z",
   "includes_unapproved": true,
   "modules": [
     {
       "id": "anifilter_mediaforge",
       "folder": "anifilter_mediaforge",
       "name": "AniFilter",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "AniFilter",
       "trust": "unverified",
       "review_status": "unreviewed",
@@ -21,9 +21,9 @@
       "max_app_version": "",
       "requirements": [],
       "license": "",
-      "download_url": "AniFilter-MediaForge-1.0.0.mfmod",
-      "sha256": "d7ebd0b0a05163bd153a86c687490523530523ce1675dfa6efdbfffb7dbbaa6b",
-      "size": 24808
+      "download_url": "AniFilter-MediaForge-1.0.1.mfmod",
+      "sha256": "fae10483f6df8a8b8f626315b4eae8d7dc9a2649d7aec906b52aafca6b600632",
+      "size": 24186
     }
   ]
 }

@@ -1,1 +1,2 @@
+fae10483f6df8a8b8f626315b4eae8d7dc9a2649d7aec906b52aafca6b600632  AniFilter-MediaForge-1.0.1.mfmod
 d7ebd0b0a05163bd153a86c687490523530523ce1675dfa6efdbfffb7dbbaa6b  AniFilter-MediaForge-1.0.0.mfmod

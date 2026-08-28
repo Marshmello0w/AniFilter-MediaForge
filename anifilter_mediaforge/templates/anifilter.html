@@ -108,17 +108,7 @@
     </div>
   </section>
 </main>
-
-<div class="af-modal" id="afModal" hidden role="dialog" aria-modal="true" aria-labelledby="afModalTitle">
-  <button class="af-modal-backdrop" type="button" data-close aria-label="Schließen"></button>
-  <div class="af-modal-panel" tabindex="-1">
-    <button class="af-modal-close" type="button" data-close aria-label="Schließen">×</button>
-    <div class="af-detail" id="afDetail">
-      <div class="af-detail-art mf-skeleton"></div>
-      <div class="af-detail-body"><h2 id="afModalTitle">Anime wird geladen …</h2></div>
-    </div>
-  </div>
-</div>
+{% include "shared_modals.html" %}
 
 <script>
 window.ANIFILTER_CONFIG = {
@@ -131,6 +121,8 @@ window.ANIFILTER_CONFIG = {
 {% endblock %}
 
 {% block scripts %}
+{# AniFilter cards open the exact same native series view as MediaForge's
+   built-in AniWorld cards. app.js owns openSeries(), queue and Auto-Sync. #}
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 <script src="{{ url_for('anifilter_mediaforge.static', filename='anifilter.js') }}"></script>
 {% endblock %}
-

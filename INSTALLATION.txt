@@ -13,9 +13,21 @@ Variante A – Modulordner kopieren
 
 Variante B – .mfmod
 -------------------
-Die Datei AniFilter-MediaForge-1.0.0.mfmod ist das gepackte Modul. Wenn deine
+Die Datei AniFilter-MediaForge-1.0.1.mfmod ist das aktuelle gepackte Modul. Wenn deine
 MediaForge-Installation lokale Moduldateien im Modulmanager akzeptiert, kannst
 du diese Datei dort auswählen. Andernfalls Variante A verwenden.
+
+Variante C – eigenes öffentliches GitHub-Repository
+----------------------------------------------------
+1. Den kompletten Inhalt dieses Ausgabeordners in den Branch "main" hochladen.
+2. In /extensions "unverifizierte und ungeprüfte Module erlauben" aktivieren.
+3. Unter "Weitere Repositories" eintragen:
+   https://raw.githubusercontent.com/DEIN-NAME/DEIN-REPOSITORY/main
+4. Speichern, den Store aktualisieren und AniFilter installieren.
+
+Nicht die normale github.com-Projektseite eintragen. MediaForge benötigt die
+Raw-Basis-URL, unter der index.json und index-all.json direkt abrufbar sind.
+Das Repository muss öffentlich sein.
 
 Hinweise
 --------
@@ -25,4 +37,3 @@ Hinweise
 - Die bestehende AniFilter-AMP-Installation wird nicht verwendet oder verändert.
 - Nicht signierte private Module können im Modulmanager als "unverifiziert"
   erscheinen. Das ist bei lokal erstellten Modulen normal.
-

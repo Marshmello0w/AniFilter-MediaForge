@@ -30,6 +30,22 @@ def _csv(name):
     return [value.strip() for value in values if value.strip()]
 
 
+def _with_proxied_poster(item):
+    """Use MediaForge's authenticated, cached image proxy for every cover."""
+    item = dict(item)
+    poster = item.get("poster_url") or ""
+    if poster:
+        try:
+            from ...routes.image_proxy import _poster_proxy
+
+            item["poster_url"] = _poster_proxy(poster)
+        except Exception:
+            # The browser helper applies the same proxy as a compatibility
+            # fallback on MediaForge variants without _poster_proxy.
+            item["poster_url"] = poster
+    return item
+
+
 @bp.route("/anifilter")
 def index():
     if not _enabled():
@@ -61,6 +77,7 @@ def api_catalogue():
         },
         age_ceiling=age_ceiling,
     )
+    payload["items"] = [_with_proxied_poster(item) for item in payload["items"]]
     return jsonify(payload)
 
 
@@ -77,7 +94,7 @@ def api_anime(slug):
             return jsonify({"error": "age_limited"}), 403
     except Exception:
         pass
-    return jsonify(item)
+    return jsonify(_with_proxied_poster(item))
 
 
 @bp.route("/api/anifilter/releases/german")
@@ -92,6 +109,7 @@ def api_releases():
         ])
     except Exception:
         pass
+    payload["items"] = [_with_proxied_poster(item) for item in payload["items"]]
     return jsonify(payload)
 
 
