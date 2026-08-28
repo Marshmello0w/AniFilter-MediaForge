@@ -1,5 +1,3 @@
-"""AniFilter page and JSON API."""
-
 from __future__ import annotations
 
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
@@ -31,7 +29,6 @@ def _csv(name):
 
 
 def _with_proxied_poster(item):
-    """Use MediaForge's authenticated, cached image proxy for every cover."""
     item = dict(item)
     poster = item.get("poster_url") or ""
     if poster:
@@ -40,8 +37,6 @@ def _with_proxied_poster(item):
 
             item["poster_url"] = _poster_proxy(poster)
         except Exception:
-            # The browser helper applies the same proxy as a compatibility
-            # fallback on MediaForge variants without _poster_proxy.
             item["poster_url"] = poster
     return item
 

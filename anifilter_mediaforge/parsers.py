@@ -1,5 +1,3 @@
-"""Small dependency-free parsers for AniWorld's catalogue and release pages."""
-
 from __future__ import annotations
 
 import re
@@ -244,4 +242,3 @@ def parse_german_releases(html: str, base_url: str = BASE_URL) -> list[dict]:
         key=lambda item: (item["released_on"], item["season"], item["episode"]),
         reverse=True,
     )
-

@@ -1,24 +1,17 @@
-"""AniFilter for MediaForge.
-
-Native AniWorld catalogue enrichment without a second provider or a separate
-Node process.  MediaForge discovers this package from its thirdparties data
-directory and calls :func:`register`.
-"""
-
 from __future__ import annotations
 
 MODULE_NAME = "AniFilter"
 MODULE_DESCRIPTION = "Advanced AniWorld genre and age filters with German release tracking."
 MODULE_DESCRIPTION_DE = "Erweiterte AniWorld-Genre- und Altersfilter mit deutschen Neuerscheinungen."
-MODULE_AUTHOR = "AniFilter"
+MODULE_AUTHOR = "Marshmello0w"
 MODULE_ENABLED_DEFAULT = False
-MODULE_VERSION = "1.0.1"
+MODULE_VERSION = "1.0.2"
 MODULE_API_VERSION = 1
 MODULE_MIN_APP_VERSION = "1.5.0"
 MODULE_MAX_APP_VERSION = ""
 MODULE_REQUIREMENTS = ()
 MODULE_ID = "anifilter_mediaforge"
-MODULE_HOMEPAGE = ""
+MODULE_HOMEPAGE = "https://github.com/Marshmello0w/AniFilter-MediaForge"
 MODULE_LICENSE = ""
 
 ITEM_ID = MODULE_ID
@@ -35,7 +28,6 @@ _ICON = (
 
 
 def register(app) -> None:
-    """Register the page, settings, worker and optional Discover feed."""
     from .routes import bp
     from .scanner import start_worker, stop_worker
     from ..registry import register_background_worker, register_thirdparty
@@ -84,8 +76,6 @@ def register(app) -> None:
 
     register_background_worker(ITEM_ID, start=start_worker, stop=stop_worker)
 
-    # The source is already resolvable by MediaForge's built-in AniWorld
-    # provider.  We only contribute a small "new" feed, never another provider.
     try:
         from ....home_feed import register_home_feed_source
 
@@ -99,8 +89,6 @@ def register(app) -> None:
     except Exception:
         app.logger.debug("[AniFilter] Discover feed registration unavailable", exc_info=True)
 
-    # AniWorld is built in and normally already allowlisted. Re-registering it
-    # under this item id also keeps standalone module pages safe on variants.
     try:
         from ...routes.image_proxy import register_image_hosts
 

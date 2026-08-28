@@ -1,9 +1,3 @@
-/* Hallmark · macrostructure: Catalogue · tone: technical-utilitarian · anchor hue: inherited MediaForge theme
- * audience: MediaForge users · use: filter AniWorld and manage titles natively
- * pre-emit critique: P5 H4 E5 S5 R5 V5 · contrast: pass (40–41)
- * nav/footer: inherited MediaForge shell · slop: pass (42–45) · honest/chrome/tokens: pass (46–48)
- * responsive/mobile: pass (30, 34, 49–57)
- */
 html, body { overflow-x: clip; }
 .af-page { color: var(--color-text); font-family: var(--font-body); min-width: 0; }
 .af-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); }

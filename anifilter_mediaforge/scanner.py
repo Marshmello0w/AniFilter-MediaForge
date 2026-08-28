@@ -1,5 +1,3 @@
-"""Managed, resumable AniWorld background scanner."""
-
 from __future__ import annotations
 
 import threading
@@ -57,6 +55,7 @@ class Scanner:
     def start(self):
         if self.thread and self.thread.is_alive():
             return
+        self.store.initialize()
         self.stop_event.clear()
         self.thread = threading.Thread(target=self.run, name="anifilter-scanner", daemon=True)
         self.thread.start()
@@ -84,6 +83,23 @@ class Scanner:
         except (TypeError, ValueError):
             return True
 
+    @staticmethod
+    def _retry_ready(value: str) -> bool:
+        if not value:
+            return True
+        try:
+            stamp = datetime.fromisoformat(value)
+            if stamp.tzinfo is None:
+                stamp = stamp.astimezone()
+            return datetime.now().astimezone() >= stamp
+        except (TypeError, ValueError):
+            return True
+
+    def _refresh_due(self, kind: str, hours: int) -> bool:
+        return self._retry_ready(self.store.get_state(f"{kind}_next_retry_at")) and self._due(
+            self.store.get_state(f"{kind}_updated_at"), hours
+        )
+
     def _speed(self):
         try:
             from ...db import get_setting
@@ -102,8 +118,6 @@ class Scanner:
         return response.text
 
     def refresh_catalogue(self):
-        # Reuse MediaForge's persisted /animes-alphabet catalogue. If it is not
-        # ready yet, fall back to one direct request through the same session.
         alphabet = []
         try:
             from ... import catalogue_store
@@ -133,8 +147,6 @@ class Scanner:
             raise ValueError("AniWorld catalogue shrank implausibly; keeping the previous snapshot")
         self.store.upsert_catalogue(merged)
         if self.force_details:
-            # Parser-version invalidation is normally automatic. A manual full
-            # refresh deliberately requeues all active details without wiping data.
             with self.store.connect() as db:
                 db.execute("UPDATE anime SET scan_status='pending' WHERE active=1")
         self.force_catalogue = False
@@ -201,19 +213,21 @@ class Scanner:
         self._report("idle")
         while not self.stop_event.is_set():
             try:
-                if self.force_catalogue or self._due(self.store.get_state("catalogue_updated_at"), 24):
+                forced = self.force_catalogue
+                if forced or self._refresh_due("catalogue", 24):
+                    self.force_catalogue = False
                     self._report("working", "Katalog wird aktualisiert")
                     try:
                         self.refresh_catalogue()
                     except Exception as exc:
-                        self.store.set_state("catalogue_error", str(exc)[:500])
+                        self.store.mark_refresh_error("catalogue", str(exc))
                         self.app.logger.warning("[AniFilter] catalogue refresh failed: %s", exc)
 
-                if self._due(self.store.get_state("releases_updated_at"), 1):
+                if self._refresh_due("releases", 1):
                     try:
                         self.refresh_releases()
                     except Exception as exc:
-                        self.store.set_state("releases_error", str(exc)[:500])
+                        self.store.mark_refresh_error("releases", str(exc))
                         self.app.logger.warning("[AniFilter] release refresh failed: %s", exc)
 
                 concurrency, interval = self._speed()
@@ -260,4 +274,3 @@ def request_refresh(force_details=False):
             return False
         _worker.request_refresh(force_details=force_details)
         return True
-

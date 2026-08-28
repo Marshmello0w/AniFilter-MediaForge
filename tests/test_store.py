@@ -1,9 +1,10 @@
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from anifilter_mediaforge.db import Store, normalize_poster_url
+from anifilter_mediaforge.scanner import Scanner
 
 
 def entry(slug, genres=None):
@@ -25,6 +26,7 @@ class StoreTests(unittest.TestCase):
 
     def populated(self):
         store = Store(Path(self.temp.name) / "test.sqlite")
+        store.initialize()
         rows = [entry(f"filler-{index}") for index in range(100)]
         rows += [entry("green", ["Action", "Ger"]), entry("red", ["Harem", "Ecchi"]), entry("mixed", ["Action", "Harem"])]
         store.upsert_catalogue(rows)
@@ -54,6 +56,7 @@ class StoreTests(unittest.TestCase):
     def test_fsk_18_is_always_available_when_account_allows_it(self):
         path = Path(self.temp.name) / "fsk.sqlite"
         store = Store(path)
+        store.initialize()
         store.upsert_catalogue([entry(f"show-{index}") for index in range(100)])
         self.assertEqual(store.catalogue({})["facets"]["ages"], [0, 6, 12, 16, 18])
         self.assertEqual(store.catalogue({}, age_ceiling=16)["facets"]["ages"], [0, 6, 12, 16])
@@ -84,10 +87,48 @@ class StoreTests(unittest.TestCase):
     def test_restart_resets_in_progress_without_losing_metadata(self):
         path = Path(self.temp.name) / "resume.sqlite"
         store = Store(path)
+        store.initialize()
         store.upsert_catalogue([entry(f"show-{index}") for index in range(100)])
         self.assertIsNotNone(store.next_scan_item())
-        restarted = Store(path)
-        self.assertEqual(restarted.status()["pending"], 100)
+        reader = Store(path)
+        with reader.connect() as db:
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM anime WHERE scan_status='in_progress'").fetchone()[0],
+                1,
+            )
+        reader.status()
+        with reader.connect() as db:
+            self.assertEqual(
+                db.execute("SELECT COUNT(*) FROM anime WHERE scan_status='in_progress'").fetchone()[0],
+                1,
+            )
+        reader.initialize()
+        self.assertEqual(reader.status()["pending"], 100)
+
+    def test_refresh_failures_use_persistent_backoff(self):
+        path = Path(self.temp.name) / "backoff.sqlite"
+        store = Store(path)
+        store.initialize()
+
+        class Logger:
+            def __getattr__(self, _name):
+                return lambda *_args, **_kwargs: None
+
+        class App:
+            logger = Logger()
+
+        scanner = Scanner(App())
+        scanner.store = store
+        self.assertTrue(scanner._refresh_due("catalogue", 24))
+        first_retry = store.mark_refresh_error("catalogue", "temporary failure")
+        self.assertFalse(scanner._refresh_due("catalogue", 24))
+        second_retry = store.mark_refresh_error("catalogue", "temporary failure")
+        self.assertGreater(datetime.fromisoformat(second_retry), datetime.fromisoformat(first_retry))
+        store.set_state(
+            "catalogue_next_retry_at",
+            (datetime.now().astimezone() - timedelta(seconds=1)).isoformat(timespec="seconds"),
+        )
+        self.assertTrue(scanner._refresh_due("catalogue", 24))
 
 
 if __name__ == "__main__":

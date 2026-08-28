@@ -1,5 +1,3 @@
-"""Persistent module-owned store and filter engine."""
-
 from __future__ import annotations
 
 import json
@@ -15,16 +13,10 @@ _CANONICAL_FSK_LEVELS = {0, 6, 12, 16, 18}
 try:
     _BERLIN = ZoneInfo("Europe/Berlin")
 except ZoneInfoNotFoundError:
-    # Windows Python installations do not always ship the optional IANA
-    # database. MediaForge itself does not require ``tzdata``, so the module
-    # must not turn it into a hidden dependency. On a German host the system
-    # zone carries the same DST rules; elsewhere dates still remain stable.
     _BERLIN = datetime.now().astimezone().tzinfo
 
 
 class _ClosingConnection(sqlite3.Connection):
-    """sqlite context manager that also closes its Windows file handle."""
-
     def __exit__(self, exc_type, exc_value, traceback):
         try:
             return super().__exit__(exc_type, exc_value, traceback)
@@ -48,13 +40,6 @@ def _loads(value, default=None):
 
 
 def normalize_poster_url(value) -> str:
-    """Return a browser/proxy-safe AniWorld poster URL.
-
-    Existing databases may contain a relative cover path, a protocol-relative
-    CDN URL or a URL accidentally prefixed twice by an older parser.  Projecting
-    the normalized value fixes those rows immediately without re-scanning the
-    whole catalogue.
-    """
     raw = str(value or "").strip()
     if not raw or raw.startswith("data:"):
         return ""
@@ -81,7 +66,6 @@ def default_db_path() -> Path:
 
         return module_data_dir("anifilter_mediaforge") / "anifilter.sqlite"
     except Exception:
-        # Primarily useful for the bundled tests outside a MediaForge process.
         return Path.home() / ".mediaforge" / "module_data" / "anifilter_mediaforge" / "anifilter.sqlite"
 
 
@@ -90,7 +74,6 @@ class Store:
 
     def __init__(self, path: str | Path | None = None):
         self.path = Path(path) if path else default_db_path()
-        self.initialize()
 
     def connect(self):
         connection = sqlite3.connect(self.path, timeout=30, factory=_ClosingConnection)
@@ -150,8 +133,34 @@ class Store:
                     CREATE INDEX IF NOT EXISTS idx_releases_date ON german_releases(released_on DESC);
                     """
                 )
-                # A process killed during a detail request resumes that row.
                 db.execute("UPDATE anime SET scan_status='pending' WHERE scan_status='in_progress'")
+
+    def mark_refresh_error(self, kind: str, message: str) -> str:
+        if kind not in {"catalogue", "releases"}:
+            raise ValueError("unknown refresh kind")
+        now = datetime.now(tz=_BERLIN)
+        count_key = f"{kind}_error_count"
+        with self.connect() as db:
+            row = db.execute("SELECT value FROM state WHERE key=?", (count_key,)).fetchone()
+            try:
+                count = int(row["value"] if row else 0) + 1
+            except (TypeError, ValueError):
+                count = 1
+            delay_minutes = min(6 * 60, 5 * (2 ** min(count - 1, 8)))
+            retry_at = (now + timedelta(minutes=delay_minutes)).isoformat(timespec="seconds")
+            values = {
+                f"{kind}_error": str(message)[:500],
+                count_key: count,
+                f"{kind}_last_attempt_at": now.isoformat(timespec="seconds"),
+                f"{kind}_next_retry_at": retry_at,
+            }
+            for key, value in values.items():
+                db.execute(
+                    "INSERT INTO state(key,value) VALUES(?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, str(value)),
+                )
+        return retry_at
 
     def get_state(self, key: str, default: str = "") -> str:
         with self.connect() as db:
@@ -186,8 +195,6 @@ class Store:
                     status_sql = (
                         ", scan_status='pending'" if int(existing["parser_version"] or 0) < PARSER_VERSION else ""
                     )
-                    # Successful detail genres are authoritative; catalogue
-                    # genres are a useful temporary fallback for pending rows.
                     genres = _loads(existing["genres_json"])
                     if not genres:
                         genres = catalogue_genres
@@ -217,8 +224,6 @@ class Store:
                         ),
                     )
 
-            # Only a validated full snapshot reaches this method. Missing
-            # titles need three consecutive confirmations before deactivation.
             current = db.execute("SELECT slug FROM anime WHERE active=1").fetchall()
             for item in current:
                 if item["slug"] not in slugs:
@@ -236,6 +241,16 @@ class Store:
                 "INSERT INTO state(key,value) VALUES('catalogue_error','') "
                 "ON CONFLICT(key) DO UPDATE SET value=''"
             )
+            for key, value in (
+                ("catalogue_error_count", "0"),
+                ("catalogue_next_retry_at", ""),
+                ("catalogue_last_attempt_at", now),
+            ):
+                db.execute(
+                    "INSERT INTO state(key,value) VALUES(?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, value),
+                )
             db.commit()
         return len(entries)
 
@@ -353,6 +368,16 @@ class Store:
                 "INSERT INTO state(key,value) VALUES('releases_error','') "
                 "ON CONFLICT(key) DO UPDATE SET value=''"
             )
+            for key, value in (
+                ("releases_error_count", "0"),
+                ("releases_next_retry_at", ""),
+                ("releases_last_attempt_at", now),
+            ):
+                db.execute(
+                    "INSERT INTO state(key,value) VALUES(?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, value),
+                )
             db.commit()
         return saved
 
@@ -519,6 +544,8 @@ class Store:
             "errors": counts.get("error", 0),
             "catalogue_updated_at": self.get_state("catalogue_updated_at"),
             "catalogue_error": self.get_state("catalogue_error"),
+            "catalogue_next_retry_at": self.get_state("catalogue_next_retry_at"),
             "releases_updated_at": self.get_state("releases_updated_at"),
             "releases_error": self.get_state("releases_error"),
+            "releases_next_retry_at": self.get_state("releases_next_retry_at"),
         }
