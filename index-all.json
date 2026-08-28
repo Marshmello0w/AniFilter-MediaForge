@@ -1,0 +1,29 @@
+{
+  "store_api": 1,
+  "name": "AniFilter MediaForge Repository",
+  "updated_at": "2026-08-28T00:00:00Z",
+  "includes_unapproved": true,
+  "modules": [
+    {
+      "id": "anifilter_mediaforge",
+      "folder": "anifilter_mediaforge",
+      "name": "AniFilter",
+      "version": "1.0.0",
+      "author": "AniFilter",
+      "trust": "unverified",
+      "review_status": "unreviewed",
+      "description": {
+        "de": "Erweiterte AniWorld-Genre- und Altersfilter mit deutschen Neuerscheinungen.",
+        "en": "Advanced AniWorld genre and age filters with German release tracking."
+      },
+      "api_version": 1,
+      "min_app_version": "1.5.0",
+      "max_app_version": "",
+      "requirements": [],
+      "license": "",
+      "download_url": "AniFilter-MediaForge-1.0.0.mfmod",
+      "sha256": "d7ebd0b0a05163bd153a86c687490523530523ce1675dfa6efdbfffb7dbbaa6b",
+      "size": 24808
+    }
+  ]
+}
