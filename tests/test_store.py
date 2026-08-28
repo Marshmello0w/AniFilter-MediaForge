@@ -3,8 +3,8 @@ import unittest
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from anifilter_mediaforge.db import Store, normalize_poster_url
-from anifilter_mediaforge.scanner import Scanner
+from anifilter_mediaforge.db import PARSER_VERSION, Store, normalize_poster_url
+from anifilter_mediaforge.scanner import Scanner, is_supported_aniworld_series_url
 
 
 def entry(slug, genres=None):
@@ -129,6 +129,67 @@ class StoreTests(unittest.TestCase):
             (datetime.now().astimezone() - timedelta(seconds=1)).isoformat(timespec="seconds"),
         )
         self.assertTrue(scanner._refresh_due("catalogue", 24))
+
+    def test_underscore_series_urls_are_accepted_without_broadening_the_host(self):
+        self.assertTrue(is_supported_aniworld_series_url(
+            "https://aniworld.to/anime/stream/ghost-in-the-shell-sac_2045"
+        ))
+        self.assertTrue(is_supported_aniworld_series_url(
+            "https://aniworld.to/anime/stream/d_cide-traumerei-the-animation"
+        ))
+        self.assertFalse(is_supported_aniworld_series_url(
+            "https://example.com/anime/stream/ghost-in-the-shell-sac_2045"
+        ))
+        self.assertFalse(is_supported_aniworld_series_url(
+            "https://aniworld.to/anime/stream/title?redirect=https://example.com"
+        ))
+
+    def test_detail_errors_obey_retry_time_even_with_old_parser_version(self):
+        path = Path(self.temp.name) / "detail-backoff.sqlite"
+        store = Store(path)
+        store.initialize()
+        store.upsert_catalogue([entry(f"show-{index}") for index in range(100)])
+        item = store.next_scan_item()
+        self.assertIsNotNone(item)
+        store.mark_scan_error(item["slug"], "temporary error")
+        with store.connect() as db:
+            db.execute(
+                "UPDATE anime SET scan_status='done',parser_version=? WHERE slug<>?",
+                (PARSER_VERSION, item["slug"]),
+            )
+        self.assertIsNone(store.next_scan_item())
+        with store.connect() as db:
+            db.execute(
+                "UPDATE anime SET next_retry_at=? WHERE slug=?",
+                ((datetime.now().astimezone() - timedelta(seconds=1)).isoformat(timespec="seconds"), item["slug"]),
+            )
+        self.assertEqual(store.next_scan_item()["slug"], item["slug"])
+
+    def test_upgrade_requeues_previous_underscore_validator_errors_once(self):
+        path = Path(self.temp.name) / "underscore-migration.sqlite"
+        store = Store(path)
+        store.initialize()
+        rows = [entry(f"show-{index}") for index in range(99)]
+        rows.append(entry("d_cide-traumerei-the-animation"))
+        store.upsert_catalogue(rows)
+        with store.connect() as db:
+            db.execute(
+                """UPDATE anime SET scan_status='error',error_count=25,
+                   last_error='Invalid AniWorld series URL: https://aniworld.to/anime/stream/d_cide-traumerei-the-animation',
+                   next_retry_at='2099-01-01T00:00:00+00:00'
+                   WHERE slug='d_cide-traumerei-the-animation'"""
+            )
+            db.execute("DELETE FROM state WHERE key='underscore_url_fix_version'")
+        Store(path).initialize()
+        with store.connect() as db:
+            row = db.execute(
+                "SELECT scan_status,error_count,last_error,next_retry_at FROM anime WHERE slug=?",
+                ("d_cide-traumerei-the-animation",),
+            ).fetchone()
+        self.assertEqual(row["scan_status"], "pending")
+        self.assertEqual(row["error_count"], 0)
+        self.assertEqual(row["last_error"], "")
+        self.assertIsNone(row["next_retry_at"])
 
 
 if __name__ == "__main__":

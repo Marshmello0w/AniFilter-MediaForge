@@ -134,6 +134,19 @@ class Store:
                     """
                 )
                 db.execute("UPDATE anime SET scan_status='pending' WHERE scan_status='in_progress'")
+                migration = db.execute(
+                    "SELECT value FROM state WHERE key='underscore_url_fix_version'"
+                ).fetchone()
+                if not migration or migration["value"] != "1":
+                    db.execute(
+                        """UPDATE anime SET scan_status='pending',error_count=0,last_error='',
+                           next_retry_at=NULL WHERE scan_status='error' AND instr(slug,'_')>0
+                           AND last_error LIKE 'Invalid AniWorld series URL:%'"""
+                    )
+                    db.execute(
+                        "INSERT INTO state(key,value) VALUES('underscore_url_fix_version','1') "
+                        "ON CONFLICT(key) DO UPDATE SET value='1'"
+                    )
 
     def mark_refresh_error(self, kind: str, message: str) -> str:
         if kind not in {"catalogue", "releases"}:
@@ -261,10 +274,11 @@ class Store:
             row = db.execute(
                 """SELECT * FROM anime
                    WHERE active=1 AND (
-                     scan_status='pending' OR parser_version<? OR
+                     scan_status='pending' OR (scan_status='done' AND parser_version<?) OR
                      (scan_status='error' AND (next_retry_at IS NULL OR next_retry_at<=?))
                    )
-                   ORDER BY CASE WHEN scan_status='pending' OR parser_version<? THEN 0 ELSE 1 END,
+                   ORDER BY CASE WHEN scan_status='pending' OR
+                            (scan_status='done' AND parser_version<?) THEN 0 ELSE 1 END,
                             error_count, discovered_at, slug
                    LIMIT 1""",
                 (PARSER_VERSION, now, PARSER_VERSION),

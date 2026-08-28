@@ -3,3 +3,5 @@
 39d6431e0dfeb2543a3c350aea9993ef118b095b34248b3a570ab751d69d9f0c  AniFilter-MediaForge-1.0.2.mfmod
 39d6431e0dfeb2543a3c350aea9993ef118b095b34248b3a570ab751d69d9f0c  AniFilter-MediaForge-1.0.2-PORTAL.mfmod
 39d6431e0dfeb2543a3c350aea9993ef118b095b34248b3a570ab751d69d9f0c  AniFilter-MediaForge-1.0.2-PORTAL.zip
+c676a7b7b824b9e6cda73aa7103cd6aefeb8bf21914e2b6f9c5f03cd09a6834d  AniFilter-MediaForge-1.0.3.mfmod
+c676a7b7b824b9e6cda73aa7103cd6aefeb8bf21914e2b6f9c5f03cd09a6834d  AniFilter-MediaForge-1.0.3-PORTAL.mfmod

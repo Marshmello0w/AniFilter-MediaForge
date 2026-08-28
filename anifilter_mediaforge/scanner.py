@@ -13,6 +13,21 @@ _worker = None
 _worker_lock = threading.Lock()
 
 
+def is_supported_aniworld_series_url(value):
+    try:
+        parsed = urlparse(str(value))
+    except (TypeError, ValueError):
+        return False
+    if parsed.scheme not in {"http", "https"} or parsed.hostname not in {"aniworld.to", "www.aniworld.to"}:
+        return False
+    if parsed.query or parsed.fragment:
+        return False
+    parts = parsed.path.rstrip("/").split("/")
+    if len(parts) != 4 or parts[:3] != ["", "anime", "stream"] or not parts[3]:
+        return False
+    return all(character.isascii() and (character.isalnum() or character in "-_") for character in parts[3])
+
+
 class RateGate:
     def __init__(self):
         self.lock = threading.Lock()
@@ -163,7 +178,10 @@ class Scanner:
         try:
             from ....models.aniworld_to.series import AniworldSeries
 
-            series = AniworldSeries(url=item["url"])
+            class AniFilterSeries(AniworldSeries):
+                is_valid_aniworld_series_url = staticmethod(is_supported_aniworld_series_url)
+
+            series = AniFilterSeries(url=item["url"])
             title = series.title
             if not title:
                 raise ValueError(getattr(series, "page_problem", None) or "AniWorld detail page has no title")

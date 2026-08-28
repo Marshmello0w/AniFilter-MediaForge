@@ -1,14 +1,14 @@
 {
   "store_api": 1,
   "name": "AniFilter MediaForge Repository",
-  "updated_at": "2026-08-28T20:30:49Z",
+  "updated_at": "2026-08-28T23:08:09Z",
   "includes_unapproved": true,
   "modules": [
     {
       "id": "anifilter_mediaforge",
       "folder": "anifilter_mediaforge",
       "name": "AniFilter",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": "Marshmello0w",
       "trust": "unverified",
       "review_status": "unreviewed",
@@ -23,9 +23,9 @@
       "license": "",
       "source_url": "https://github.com/Marshmello0w/AniFilter-MediaForge",
       "repo_url": "https://github.com/Marshmello0w/AniFilter-MediaForge",
-      "download_url": "AniFilter-MediaForge-1.0.2.mfmod",
-      "sha256": "39d6431e0dfeb2543a3c350aea9993ef118b095b34248b3a570ab751d69d9f0c",
-      "size": 24225
+      "download_url": "AniFilter-MediaForge-1.0.3.mfmod",
+      "sha256": "c676a7b7b824b9e6cda73aa7103cd6aefeb8bf21914e2b6f9c5f03cd09a6834d",
+      "size": 23404
     }
   ]
 }
